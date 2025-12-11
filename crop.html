@@ -1,0 +1,1300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="app-title">AI Disease Detector (Farmer Focus)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f7fbee; }
+        .container-card { max-width: 900px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); }
+        .upload-area { border: 3px dashed #86efac; transition: all 0.3s ease; }
+        .upload-area:hover { border-color: #10b981; background-color: #f0fdf4; }
+        .health-bar-container { background-color: #e5e7eb; border-radius: 9999px; overflow: hidden; }
+        .health-bar { transition: width 1s ease-in-out, background-color 0.5s ease; }
+        /* Treatment boxes will dynamically change border/background color */
+        .treatment-box-healthy { border-left: 5px solid #22c55e; background-color: #ecfdf5; }
+        .treatment-box-diseased { border-left: 5px solid #ef4444; background-color: #fef2f2; }
+
+        /* Style for the video feed and canvas to ensure full width/height in container */
+        .camera-stream, .captured-photo {
+            width: 100%;
+            height: 100%;
+            max-height: 400px; /* Matches the container max-h-96 approx */
+            object-fit: contain; /* Use 'contain' to ensure full image is visible */
+            border-radius: 0.75rem; /* rounded-xl */
+        }
+    </style>
+</head>
+<body class="flex items-start justify-center min-h-screen p-4 sm:p-8">
+
+    <div class="container-card w-full bg-white p-6 sm:p-10 rounded-xl grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <!-- Language Selector -->
+        <div class="lg:col-span-3 flex justify-end mb-4 -mt-4 items-center space-x-2">
+            <span class="text-sm font-bold text-green-700" data-i18n="select-lang-label">Select Language:</span>
+            <select id="language-selector" class="p-2 border border-stone-300 rounded-lg text-sm bg-stone-50">
+                <option value="en">English</option>
+                <option value="hi">हिन्दी (Hindi)</option>
+                <option value="te">తెలుగు (Telugu)</option>
+            </select>
+        </div>
+
+        <!-- Column 1: Disease Reference Catalog (Mock Data) -->
+        <div class="lg:col-span-1 border-r lg:pr-8 pr-0 pb-4 lg:pb-0">
+            <h2 data-i18n="catalog-title" class="text-2xl font-bold text-green-700 mb-6 flex items-center">
+                <i class="fas fa-seedling mr-3"></i> Crop Disease Catalog (Examples)
+            </h2>
+            <div id="disease-catalog" class="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+                <!-- Disease cards will be injected here -->
+            </div>
+        </div>
+
+        <!-- Column 2 & 3: Analysis Interface and Results -->
+        <div class="lg:col-span-2 space-y-8">
+            <header class="text-center mb-6">
+                <!-- Main Header with Default Leaf Icon and Dynamic Crop Icon -->
+                <div class="flex items-center justify-center space-x-4">
+                    <!-- Default leaf icon, always visible and looking good -->
+                    <i id="default-leaf-icon" class="fas fa-leaf mr-2 text-green-500 text-3xl"></i> 
+                    <h1 data-i18n="detector-title" class="text-3xl font-extrabold text-green-900">🔬 AI Disease Detector</h1>
+                    <!-- Dynamic crop icon (Hidden until a crop is selected) -->
+                    <img id="main-crop-icon" src="" alt="Selected Crop Icon" class="w-14 h-14 object-cover rounded-lg shadow-md border border-green-300 hidden transition-all duration-300">
+                </div>
+                <p data-i18n="detector-subtitle" class="text-stone-500 mt-2">Upload or capture a leaf image for an accurate AI diagnosis and treatment plan.</p>
+            </header>
+            
+            <!-- Crop Selector (Step 1) -->
+            <div class="space-y-2">
+                <label data-i18n="crop-label" for="crop-selector" class="block text-lg font-semibold text-stone-700">1. Select Crop:</label>
+                <select id="crop-selector" class="w-full p-3 border border-stone-300 rounded-lg focus:ring-green-500 focus:border-green-500">
+                    <option value="" data-i18n="crop-placeholder">-- Choose the crop shown in the image --</option>
+                    <option value="Amaranth">Amaranth</option>
+                    <option value="Apple Gourd">Apple Gourd</option>
+                    <option value="Ash Gourd">Ash Gourd</option>
+                    <option value="Bitter Gourd">Bitter Gourd</option>
+                    <option value="Bottle Gourd">Bottle Gourd</option>
+                    <option value="Brinjal (Eggplant)">Brinjal (Eggplant)</option>
+                    <option value="Broad Beans">Broad Beans</option>
+                    <option value="Cabbage">Cabbage</option>
+                    <option value="Capsicum (Bell Pepper)">Capsicum (Bell Pepper)</option>
+                    <option value="Cauliflower">Cauliflower</option>
+                    <option value="Chow Chow">Chow Chow</option>
+                    <option value="Citron">Citron</option>
+                    <option value="Cluster Beans">Cluster Beans</option>
+                    <option value="Colocasia">Colocasia</option>
+                    <option value="Coriander Leaves">Coriander Leaves</option>
+                    <option value="Corn">Corn</option>
+                    <option value="Cranberry">Cranberry</option>
+                    <option value="Cucumber">Cucumber</option>
+                    <option value="Drum Stick">Drum Stick</option>
+                    <option value="Fenugreek">Fenugreek</option>
+                    <option value="French Beans">French Beans</option>
+                    <option value="Gherkin">Gherkin</option>
+                    <option value="Green Chilli">Green Chilli</option>
+                    <option value="Green Peas">Green Peas</option>
+                    <option value="Lady Finger (Okra)">Lady Finger (Okra)</option>
+                    <option value="Malabar Spinach">Malabar Spinach</option>
+                    <option value="Mint Leaves">Mint Leaves</option>
+                    <option value="Mushrooms">Mushrooms</option>
+                    <option value="Onion">Onion</option>
+                    <option value="Pointed Gourd">Pointed Gourd</option>
+                    <option value="Potato">Potato</option>
+                    <option value="Pumpkin">Pumpkin</option>
+                    <option value="Radish">Radish</option>
+                    <option value="Raw Banana">Raw Banana</option>
+                    <option value="Ridge Gourd">Ridge Gourd</option>
+                    <option value="Silk Squash">Silk Squash</option>
+                    <option value="Snake Gourd">Snake Gourd</option>
+                    <option value="Sorrel Leaves">Sorrel Leaves</option>
+                    <option value="Spinach">Spinach</option>
+                    <option value="Spring Onions">Spring Onions</option>
+                    <option value="Sweet Potato">Sweet Potato</option>
+                    <option value="Tomato">Tomato</option>
+                    <option value="Tapioca">Tapioca</option>
+                    <option value="Turnip">Turnip</option>
+                    <option value="Yam">Yam</option>
+                </select>
+            </div>
+
+            <!-- Image Upload/Camera (Step 2) -->
+            <div class="space-y-4">
+                 <label data-i18n="image-label" for="upload-mode-toggle" class="block text-lg font-semibold text-stone-700">2. Upload/Capture Leaf Image:</label>
+                 
+                 <!-- Mode Toggle -->
+                 <div class="flex space-x-4 mb-4" id="upload-mode-toggle">
+                     <button id="mode-file-btn" class="flex-1 p-3 rounded-lg font-semibold transition-all duration-200 border-2 border-green-600 bg-green-50 text-green-700 shadow-md">
+                         <i class="fas fa-upload mr-2"></i> <span data-i18n="mode-file">Upload File</span>
+                     </button>
+                     <button id="mode-camera-btn" class="flex-1 p-3 rounded-lg font-semibold transition-all duration-200 border-2 border-stone-300 bg-stone-100 text-stone-700 hover:bg-stone-200">
+                         <i class="fas fa-camera mr-2"></i> <span data-i18n="mode-camera">Use Camera</span>
+                     </button>
+                 </div>
+
+                 <!-- File Upload Area (Default View) -->
+                <div id="file-upload-view" class="space-y-4">
+                    <label for="image-upload" id="upload-label" class="upload-area flex flex-col items-center justify-center p-8 rounded-xl cursor-pointer">
+                        <i class="fas fa-image text-4xl text-green-500 mb-3"></i>
+                        <span id="upload-text" data-i18n="upload-text">Click here or drag a leaf image to upload</span>
+                        <input type="file" id="image-upload" accept="image/*" class="hidden">
+                    </label>
+                </div>
+                
+                <!-- Camera View -->
+                <div id="camera-view" class="hidden flex flex-col items-center justify-center p-4 rounded-xl border border-stone-300 bg-stone-50 space-y-4">
+                    <!-- Video element to show the live feed -->
+                    <video id="camera-feed" class="camera-stream rounded-xl" autoplay playsinline style="max-height: 400px; display: none;"></video>
+                    <!-- Capture Button -->
+                    <button id="capture-btn" class="w-2/3 px-6 py-3 bg-red-600 text-white font-bold rounded-full shadow-lg hover:bg-red-700 transition-colors duration-200 disabled:opacity-50 flex items-center justify-center hidden">
+                        <i class="fas fa-circle mr-2"></i> <span data-i18n="capture-btn">Capture Photo</span>
+                    </button>
+                </div>
+
+
+                <!-- Image Preview Container (for uploaded OR captured image) -->
+                <div id="image-preview-container" class="hidden relative w-full h-auto max-h-96 overflow-hidden rounded-xl border border-stone-200 bg-stone-50 flex justify-center items-center">
+                    <!-- Image element for uploaded files or captured photo preview -->
+                    <img id="image-preview" class="w-full h-auto object-contain transition-opacity duration-500 opacity-0" src="#" alt="Leaf Preview">
+                    <!-- Canvas is used only momentarily to capture the video frame -->
+                    <canvas id="camera-canvas" class="captured-photo hidden"></canvas>
+                </div>
+            </div>
+            
+            <!-- Action Button and Status -->
+            <div class="flex flex-col items-center space-y-4">
+                <button id="analyze-btn" class="w-full sm:w-2/3 px-8 py-3 bg-green-600 text-white font-bold rounded-full shadow-lg hover:bg-green-700 transition-colors duration-200 disabled:opacity-50 flex items-center justify-center" disabled>
+                    <i class="fas fa-microscope mr-2"></i> <span data-i18n="analyze-btn">Analyze Leaf Image</span>
+                </button>
+                <div id="status-message" data-i18n="status-ready" class="text-center text-sm text-stone-600 min-h-[1.5rem]">Ready to analyze (1. Select Crop, 2. Upload/Capture Image).</div>
+                <div id="error-message" class="text-center text-sm text-red-600 min-h-[1.5rem] hidden"></div>
+            </div>
+
+            <!-- Analysis Results -->
+            <div id="results-container" class="mt-8 pt-6 border-t border-stone-200 hidden">
+                <h2 data-i18n="results-title" class="text-2xl font-bold text-green-800 mb-4">Diagnosis Report</h2>
+                
+                <!-- Health Rate -->
+                <div class="mb-6 p-4 rounded-xl bg-green-50 border border-green-200">
+                    <p data-i18n="health-rate-title" class="text-lg font-semibold text-green-800 mb-2 flex items-center"><i class="fas fa-heart-pulse mr-2"></i> Plant Health Rate</p>
+                    <p id="health-rate-text" class="text-3xl font-extrabold text-green-900 mb-3">--</p>
+                    <div class="health-bar-container h-3">
+                        <div id="health-bar" class="health-bar h-full" style="width: 0%;"></div>
+                    </div>
+                </div>
+
+                <!-- Disease Name -->
+                <div class="mb-6 p-4 rounded-xl" id="disease-box">
+                    <p data-i18n="disease-title" class="text-lg font-semibold mb-2 flex items-center" id="disease-title-text"><i class="fas mr-2" id="disease-icon"></i> Predicted Disease</p>
+                    <p id="disease-name" class="text-xl font-bold">--</p>
+                    <p class="text-sm text-stone-600 mt-1"><span data-i18n="certainty-label">Confidence:</span> <span id="certainty-value">--</span></p>
+                </div>
+                
+                <!-- Recommendation / Treatment Suggestion -->
+                <div id="recommendation-output" class="p-4 rounded-xl mb-6">
+                    <h3 data-i18n="recommendation-title" class="text-xl font-bold mb-2 flex items-center" id="recommendation-title-text"><i class="fas mr-2" id="recommendation-icon"></i> Initial Recommendation</h3>
+                    <p id="recommendation-text" class="text-stone-700 mb-4">--</p>
+                    
+                    <button id="generate-plan-btn" class="w-full bg-lime-600 text-white px-4 py-3 rounded-lg font-semibold hover:bg-lime-700 transition-colors duration-200 disabled:opacity-50 flex items-center justify-center disabled:bg-stone-400">
+                        <i class="fas fa-prescription-bottle-alt mr-2"></i> <span data-i18n="generate-plan-btn">Get Detailed Medicine Suggestions (AI)</span>
+                    </button>
+                    <p id="healthy-tip" class="text-sm text-green-700 mt-2 hidden" data-i18n="healthy-tip">Keep monitoring regularly. Good health is maintained through good care.</p>
+                </div>
+
+                <!-- AI Treatment Plan Output -->
+                <div id="plan-loading" class="hidden text-center text-sm text-stone-600 p-4 border border-stone-200 rounded-lg">
+                    <i class="fas fa-spinner fa-spin mr-2"></i> <span data-i18n="plan-loading">Generating expert treatment plan using Google Search grounding...</span>
+                </div>
+                <div id="treatment-plan-output" class="hidden p-6 rounded-xl bg-white border border-green-300 shadow-md">
+                     <h3 data-i18n="plan-detailed-title" class="text-xl font-bold text-green-900 mb-4 border-b pb-2 flex items-center">
+                         <i class="fas fa-notes-medical mr-2"></i> Detailed Treatment Suggestions
+                     </h3>
+                     <div id="plan-steps" class="space-y-4 text-sm"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const apiKey = "";
+        
+        function buildApiUrl(modelName) {
+            const baseUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
+            return apiKey ? `${baseUrl}?key=${apiKey}` : baseUrl;
+        }
+
+        const apiUrl_text_vision = buildApiUrl('gemini-2.5-flash-preview-09-2025');
+
+        async function fetchWithExponentialBackoff(url, options, maxRetries = 5) {
+            for (let attempt = 0; attempt < maxRetries; attempt++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (response.status !== 429) { 
+                        return response; 
+                    }
+                    const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                } catch (error) {
+                    const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+            throw new Error("API request failed after multiple retries due to network or timeout issues.");
+        }
+
+        // --- Mock Data for Catalog only (Real diagnosis uses AI) ---
+        // Expanded to include all new crops with generic mock entries for display completeness.
+        const diseaseData = [
+            { crop: "Tomato", name: "Healthy Tomato Leaf", health: 100, certainty: 100, recommendation: "Excellent health. Maintain routine care (watering, fertilization).", color: "bg-green-100", image: "https://placehold.co/80x80/22c55e/ffffff?text=Healthy+Leaf" },
+            { crop: "Tomato", name: "Tomato Early Blight", health: 30, certainty: 92, recommendation: "Infection confirmed. Immediate action required to prevent spread.", color: "bg-red-100", image: "https://placehold.co/80x80/f87171/ffffff?text=Spots" },
+            { crop: "Green Chilli", name: "Chilli Leaf Curl Virus", health: 40, certainty: 95, recommendation: "Viral infection detected. Focus on vector control (thrips/mites) and removing severely affected plants.", color: "bg-yellow-100", image: "https://placehold.co/80x80/facc15/000000?text=Curl" },
+            { crop: "Lady Finger (Okra)", name: "Okra Yellow Vein Mosaic Virus (YVMV)", health: 25, certainty: 98, recommendation: "Severe viral infection transmitted by whiteflies. Uproot infected plants and control whiteflies immediately.", color: "bg-red-100", image: "https://placehold.co/80x80/b91c1c/ffffff?text=Mosaic" },
+            { crop: "Brinjal (Eggplant)", name: "Brinjal Phomopsis Blight", health: 45, certainty: 90, recommendation: "Fungal blight confirmed. Apply appropriate fungicide.", color: "bg-red-100", image: "https://placehold.co/80x80/ef4444/ffffff?text=Fungal" },
+            // --- NEW CROPS MOCK DATA ---
+            { crop: "Amaranth", name: "Amaranth Leaf Spot", health: 50, certainty: 85, recommendation: "Fungal infection. Improve air circulation and apply general fungicide.", color: "bg-red-100", image: "https://placehold.co/80x80/ef4444/ffffff?text=AMAR" },
+            { crop: "Apple Gourd", name: "Apple Gourd Downy Mildew", health: 35, certainty: 90, recommendation: "Water late in the day and apply a copper-based fungicide.", color: "bg-yellow-100", image: "https://placehold.co/80x80/facc15/000000?text=AGMD" },
+            { crop: "Ash Gourd", name: "Ash Gourd Mosaic Virus", health: 20, certainty: 95, recommendation: "Viral infection. Remove affected plants and control aphid vectors.", color: "bg-red-100", image: "https://placehold.co/80x80/b91c1c/ffffff?text=ASMV" },
+            { crop: "Bitter Gourd", name: "Bitter Gourd Anthracnose", health: 40, certainty: 88, recommendation: "Fungal spots. Treat with a broad-spectrum fungicide immediately.", color: "bg-red-100", image: "https://placehold.co/80x80/ef4444/ffffff?text=BGAN" },
+            { crop: "Bottle Gourd", name: "Bottle Gourd Powdery Mildew", health: 55, certainty: 80, recommendation: "White powder visible. Apply sulfur or neem oil.", color: "bg-yellow-100", image: "https://placehold.co/80x80/facc15/000000?text=BGPM" },
+            { crop: "Broad Beans", name: "Broad Bean Rust", health: 30, certainty: 92, recommendation: "Orange rust spots. Use a systemic fungicide and improve spacing.", color: "bg-red-100", image: "https://placehold.co/80x80/f87171/ffffff?text=BBRS" },
+            { crop: "Cabbage", name: "Cabbage Black Rot", health: 45, certainty: 90, recommendation: "Bacterial infection. Remove and destroy infected plants; avoid overhead watering.", color: "bg-red-100", image: "https://placehold.co/80x80/ef4444/ffffff?text=CBRT" },
+            { crop: "Capsicum (Bell Pepper)", name: "Pepper Bacterial Spot", health: 35, certainty: 94, recommendation: "Bacterial spots. Apply copper fungicide, remove infected leaves.", color: "bg-red-100", image: "https://placehold.co/80x80/f87171/ffffff?text=PBSP" },
+            { crop: "Cauliflower", name: "Cauliflower Clubroot", health: 20, certainty: 98, recommendation: "Soil-borne disease. Adjust soil pH and use appropriate chemicals.", color: "bg-red-100", image: "https://placehold.co/80x80/b91c1c/ffffff?text=CFCR" },
+            { crop: "Chow Chow", name: "Chow Chow Scab", health: 40, certainty: 89, recommendation: "Fungal or bacterial disease. Apply protective fungicides.", color: "bg-yellow-100", image: "https://placehold.co/80x80/facc15/000000?text=CHSC" },
+            { crop: "Citron", name: "Citrus Canker", health: 60, certainty: 75, recommendation: "Bacterial spots/lesions. Apply copper compounds as preventative measure.", color: "bg-yellow-100", image: "https://placehold.co/80x80/facc15/000000?text=CTCK" },
+            { crop: "Cluster Beans", name: "Cluster Bean Blight", health: 50, certainty: 85, recommendation: "Fungal infection. Apply a suitable fungicide and maintain hygiene.", color: "bg-red-100", image: "https://placehold.co/80x80/ef4444/ffffff?text=CBBL" },
+            { crop: "Colocasia", name: "Taro Leaf Blight", health: 30, certainty: 93, recommendation: "Severe fungal blight. Apply systemic fungicide immediately.", color: "bg-red-100", image: "https://placehold.co/80x80/f87171/ffffff?text=COLB" },
+            { crop: "Coriander Leaves", name: "Coriander Bacterial Blight", health: 40, certainty: 87, recommendation: "Bacterial infection. Use certified seeds and avoid wet conditions.", color: "bg-red-100", image: "https://placehold.co/80x80/ef4444/ffffff?text=CORB" },
+            { crop: "Corn", name: "Corn Northern Leaf Blight", health: 35, certainty: 91, recommendation: "Fungal disease. Rotate crops and apply recommended foliar fungicides.", color: "bg-red-100", image: "https://placehold.co/80x80/f87171/ffffff?text=CNLB" },
+            { crop: "Cranberry", name: "Cranberry Fruit Rot", health: 25, certainty: 96, recommendation: "Fungal rot. Apply fungicides during bloom and fruit development.", color: "bg-red-100", image: "https://placehold.co/80x80/b91c1c/ffffff?text=CFRT" },
+            { crop: "Cucumber", name: "Cucumber Anthracnose", health: 45, certainty: 88, recommendation: "Fungal lesions. Use resistant varieties and protective fungicide sprays.", color: "bg-red-100", image: "https://placehold.co/80x80/ef4444/ffffff?text=CUAN" },
+            { crop: "Drum Stick", name: "Moringa Leaf Spot", health: 50, certainty: 80, recommendation: "Fungal spots. Remove infected leaves and apply mild fungicide.", color: "bg-yellow-100", image: "https://placehold.co/80x80/facc15/000000?text=DRMS" },
+            { crop: "Fenugreek", name: "Fenugreek Powdery Mildew", health: 55, certainty: 78, recommendation: "White mold. Apply sulfur dust or bicarbonate solution.", color: "bg-yellow-100", image: "https://placehold.co/80x80/facc15/000000?text=FPM" },
+            { crop: "French Beans", name: "Bean Common Mosaic Virus", health: 30, certainty: 95, recommendation: "Viral infection. Remove affected plants and control aphids.", color: "bg-red-100", image: "https://placehold.co/80x80/f87171/ffffff?text=FBCM" },
+            { crop: "Gherkin", name: "Gherkin Viral Mosaic", health: 25, certainty: 97, recommendation: "Viral infection. Strict sanitation and vector control required.", color: "bg-red-100", image: "https://placehold.co/80x80/b91c1c/ffffff?text=GHVM" },
+            { crop: "Green Peas", name: "Pea Foot Rot", health: 35, certainty: 90, recommendation: "Soil fungus. Improve drainage and treat soil with appropriate fungicide.", color: "bg-red-100", image: "https://placehold.co/80x80/ef4444/ffffff?text=GPFR" },
+            { crop: "Malabar Spinach", name: "Spinach Downy Mildew", health: 40, certainty: 85, recommendation: "Cool, moist condition disease. Apply protective fungicides.", color: "bg-yellow-100", image: "https://placehold.co/80x80/facc15/000000?text=MSDM" },
+            { crop: "Mint Leaves", name: "Mint Rust", health: 50, certainty: 75, recommendation: "Orange pustules. Remove infected stems and apply neem oil.", color: "bg-yellow-100", image: "https://placehold.co/80x80/facc15/000000?text=MTRS" },
+            { crop: "Mushrooms", name: "Mushroom Green Mold", health: 20, certainty: 99, recommendation: "Highly contagious. Isolate and sterilize affected growing areas.", color: "bg-red-100", image: "https://placehold.co/80x80/b91c1c/ffffff?text=MGMD" },
+            { crop: "Onion", name: "Onion Thrips Damage", health: 60, certainty: 70, recommendation: "Insect pest. Apply targeted insecticide and monitor closely.", color: "bg-yellow-100", image: "https://placehold.co/80x80/facc15/000000?text=ONTP" },
+            { crop: "Pointed Gourd", name: "Pointed Gourd Fruit Fly", health: 30, certainty: 90, recommendation: "Pest damage. Use pheromone traps and fruit bagging.", color: "bg-red-100", image: "https://placehold.co/80x80/f87171/ffffff?text=PGFY" },
+            { crop: "Potato", name: "Potato Late Blight", health: 15, certainty: 98, recommendation: "Immediate application of specific fungicide is critical.", color: "bg-red-100", image: "https://placehold.co/80x80/b91c1c/ffffff?text=PTLB" },
+            { crop: "Pumpkin", name: "Pumpkin Powdery Mildew", health: 50, certainty: 80, recommendation: "White mold. Apply bicarbonate solution or sulfur.", color: "bg-yellow-100", image: "https://placehold.co/80x80/facc15/000000?text=PMPM" },
+            { crop: "Radish", name: "Radish Downy Mildew", health: 35, certainty: 85, recommendation: "Fungal infection. Improve ventilation and use fungicide.", color: "bg-red-100", image: "https://placehold.co/80x80/ef4444/ffffff?text=RDDM" },
+            { crop: "Raw Banana", name: "Banana Leaf Spot (Sigatoka)", health: 25, certainty: 93, recommendation: "Fungal disease. Apply recommended protective fungicides.", color: "bg-red-100", image: "https://placehold.co/80x80/f87171/ffffff?text=RBLS" },
+            { crop: "Ridge Gourd", name: "Ridge Gourd Mosaic Virus", health: 20, certainty: 96, recommendation: "Viral infection. Remove plants and control whiteflies/aphids.", color: "bg-red-100", image: "https://placehold.co/80x80/b91c1c/ffffff?text=RGMV" },
+            { crop: "Silk Squash", name: "Silk Squash Gummy Stem Blight", health: 30, certainty: 90, recommendation: "Fungal disease. Apply protectant fungicide and prune infected parts.", color: "bg-red-100", image: "https://placehold.co/80x80/ef4444/ffffff?text=SSGS" },
+            { crop: "Snake Gourd", name: "Snake Gourd Anthracnose", health: 40, certainty: 88, recommendation: "Fungal spots. Treat with broad-spectrum fungicide.", color: "bg-red-100", image: "https://placehold.co/80x80/f87171/ffffff?text=SGAN" },
+            { crop: "Sorrel Leaves", name: "Sorrel Rust", health: 55, certainty: 75, recommendation: "Orange spots. Improve air flow and avoid overhead watering.", color: "bg-yellow-100", image: "https://placehold.co/80x80/facc15/000000?text=SRRS" },
+            { crop: "Spinach", name: "Spinach Downy Mildew", health: 35, certainty: 90, recommendation: "Fungal disease. Use resistant varieties and apply fungicides.", color: "bg-red-100", image: "https://placehold.co/80x80/ef4444/ffffff?text=SPDM" },
+            { crop: "Spring Onions", name: "Onion Purple Blotch", health: 40, certainty: 85, recommendation: "Fungal infection. Apply appropriate fungicide and manage moisture.", color: "bg-red-100", image: "https://placehold.co/80x80/f87171/ffffff?text=SOPB" },
+            { crop: "Sweet Potato", name: "Sweet Potato Scab", health: 30, certainty: 92, recommendation: "Fungal infection. Plant healthy slips and use chemical control.", color: "bg-red-100", image: "https://placehold.co/80x80/f87171/ffffff?text=SPSC" },
+            { crop: "Tapioca", name: "Cassava Mosaic Disease", health: 25, certainty: 95, recommendation: "Viral disease. Use disease-free cuttings and remove infected plants.", color: "bg-red-100", image: "https://placehold.co/80x80/b91c1c/ffffff?text=TACM" },
+            { crop: "Turnip", name: "Turnip Yellows", health: 35, certainty: 88, recommendation: "Viral disease. Control aphids which transmit the virus.", color: "bg-red-100", image: "https://placehold.co/80x80/ef4444/ffffff?text=TNYL" },
+            { crop: "Yam", name: "Yam Anthracnose", health: 45, certainty: 85, recommendation: "Fungal disease. Apply fungicide during early growth stages.", color: "bg-red-100", image: "https://placehold.co/80x80/f87171/ffffff?text=YMAN" },
+            // Healthy/Low-Risk items
+            { crop: "Coriander Leaves", name: "Healthy Herb", health: 95, certainty: 98, recommendation: "Maintain soil moisture and harvest regularly.", color: "bg-green-100", image: "https://placehold.co/80x80/22c55e/ffffff?text=Healthy+Herb" },
+            { crop: "Mint Leaves", name: "Healthy Mint", health: 98, certainty: 99, recommendation: "Ensure adequate sunlight and prune for bushiness.", color: "bg-green-100", image: "https://placehold.co/80x80/22c55e/ffffff?text=Healthy+Mint" },
+        ];
+        
+        // --- Multilingual Setup ---
+        const translations = {
+            en: {
+                'app-title': 'AI Disease Detector (Farmer Focus)',
+                'select-lang-label': 'Select Language:',
+                'catalog-title': 'Crop Disease Catalog (Examples)',
+                'detector-title': '🔬 AI Disease Detector',
+                'detector-subtitle': 'Upload or capture a leaf image for an accurate AI diagnosis and treatment plan.',
+                'upload-text': 'Click here or drag a leaf image to upload',
+                'analyze-btn': 'Analyze Leaf Image',
+                'status-ready': 'Ready to analyze (1. Select Crop, 2. Upload/Capture Image).',
+                'status-running': 'Running real-time AI diagnosis...',
+                'status-complete': 'Analysis complete!',
+                'results-title': 'Diagnosis Report',
+                'health-rate-title': 'Plant Health Rate',
+                'disease-title': 'Predicted Disease',
+                'certainty-label': 'Confidence:',
+                'recommendation-title': 'Initial Recommendation',
+                'generate-plan-btn': 'Get Detailed Medicine Suggestions (AI)',
+                'plan-loading': 'Generating expert treatment plan using Google Search grounding...',
+                'plan-detailed-title': 'Detailed Treatment Suggestions',
+                'health-est': 'Health Est:',
+                'confidence-label': 'Confidence:',
+                'crop-diseases': (crop) => `${crop} Diseases`,
+                'crop-label': '1. Select Crop:',
+                'image-label': '2. Upload/Capture Leaf Image:',
+                'crop-placeholder': '-- Choose the crop shown in the image --',
+                'error-select-crop': 'Please select the crop type before analyzing.',
+                'error-diagnosis-fail': 'AI Diagnosis failed. Please try a clearer image or a different crop.',
+                'error-crop-mismatch': 'The image does not appear to match the selected crop. Please select the crop related to your image for accurate analysis.',
+                'healthy-tip': 'Keep monitoring regularly. Good health is maintained through good care.',
+                'mode-file': 'Upload File',
+                'mode-camera': 'Use Camera',
+                'capture-btn': 'Capture Photo',
+                'error-camera-access-permissions': 'Camera access denied or blocked. Please ensure your browser has camera permissions enabled and try again.',
+                'crop-names': { // BASE KEYS MUST BE ENGLISH
+                    'Amaranth': 'Amaranth',
+                    'Apple Gourd': 'Apple Gourd',
+                    'Ash Gourd': 'Ash Gourd',
+                    'Bitter Gourd': 'Bitter Gourd',
+                    'Bottle Gourd': 'Bottle Gourd',
+                    'Brinjal (Eggplant)': 'Brinjal (Eggplant)',
+                    'Broad Beans': 'Broad Beans',
+                    'Cabbage': 'Cabbage',
+                    'Capsicum (Bell Pepper)': 'Capsicum (Bell Pepper)',
+                    'Cauliflower': 'Cauliflower',
+                    'Chow Chow': 'Chow Chow',
+                    'Citron': 'Citron',
+                    'Cluster Beans': 'Cluster Beans',
+                    'Colocasia': 'Colocasia',
+                    'Coriander Leaves': 'Coriander Leaves',
+                    'Corn': 'Corn',
+                    'Cranberry': 'Cranberry',
+                    'Cucumber': 'Cucumber',
+                    'Drum Stick': 'Drum Stick',
+                    'Fenugreek': 'Fenugreek',
+                    'French Beans': 'French Beans',
+                    'Gherkin': 'Gherkin',
+                    'Green Chilli': 'Green Chilli',
+                    'Green Peas': 'Green Peas',
+                    'Lady Finger (Okra)': 'Lady Finger (Okra)',
+                    'Malabar Spinach': 'Malabar Spinach',
+                    'Mint Leaves': 'Mint Leaves',
+                    'Mushrooms': 'Mushrooms',
+                    'Onion': 'Onion',
+                    'Pointed Gourd': 'Pointed Gourd',
+                    'Potato': 'Potato',
+                    'Pumpkin': 'Pumpkin',
+                    'Radish': 'Radish',
+                    'Raw Banana': 'Raw Banana',
+                    'Ridge Gourd': 'Ridge Gourd',
+                    'Silk Squash': 'Silk Squash',
+                    'Snake Gourd': 'Snake Gourd',
+                    'Sorrel Leaves': 'Sorrel Leaves',
+                    'Spinach': 'Spinach',
+                    'Spring Onions': 'Spring Onions',
+                    'Sweet Potato': 'Sweet Potato',
+                    'Tomato': 'Tomato',
+                    'Tapioca': 'Tapioca',
+                    'Turnip': 'Turnip',
+                    'Yam': 'Yam',
+                }
+            },
+            hi: {
+                'app-title': 'AI रोग डिटेक्टर (किसान फोकस)',
+                'select-lang-label': 'भाषा चुनें:',
+                'catalog-title': 'फसल रोग सूची (उदाहरण)',
+                'detector-title': '🔬 AI रोग डिटेक्टर',
+                'detector-subtitle': 'वास्तविक समय AI निदान और उपचार योजना के लिए पत्ती की फोटो अपलोड करें या खींचें।',
+                'upload-text': 'अपलोड करने के लिए यहाँ क्लिक करें या पत्ती की फोटो खींचें',
+                'analyze-btn': 'पत्ती की फोटो विष्लेषण करें',
+                'status-ready': 'विष्लेषण के लिए तैयार (1. फसल चुनें, 2. फोटो अपलोड/खींचें)।',
+                'status-running': 'वास्तविक समय AI विष्लेषण हो रहा है...',
+                'status-complete': 'विष्लेषण पूरा हुआ!',
+                'results-title': 'निदान रिपोर्ट',
+                'health-rate-title': 'पौधे का स्वास्थ्य दर',
+                'disease-title': 'भविष्यवाणी किया गया रोग',
+                'certainty-label': 'आत्मविश्वास:',
+                'recommendation-title': 'प्रारंभिक सिफारिश',
+                'generate-plan-btn': 'विस्तृत दवा सुझाव प्राप्त करें (AI)',
+                'plan-loading': 'गूगल सर्च ग्राउंडिंग का उपयोग करके विशेषज्ञ उपचार योजना बनाई जा रही है...',
+                'plan-detailed-title': 'विस्तृत उपचार सुझाव',
+                'health-est': 'स्वास्थ्य अनुमान:',
+                'confidence-label': 'आत्मविश्वास:',
+                'crop-diseases': (crop) => `${crop} रोग`,
+                'crop-label': '1. फसल चुनें:',
+                'image-label': '2. पत्ती की फोटो अपलोड/खींचें:',
+                'crop-placeholder': '-- छवि में दिखाई गई फसल चुनें --',
+                'error-select-crop': 'कृपया विष्लेषण से पहले फसल का प्रकार चुनें।',
+                'error-diagnosis-fail': 'AI निदान विफल रहा। कृपया स्पष्ट छवि या दूसरी फसल चुनें।',
+                'error-crop-mismatch': 'छवि चयनित फसल से मेल नहीं खाती है। सटीक विश्लेषण के लिए कृपया अपनी छवि से संबंधित फसल का चयन करें।',
+                'healthy-tip': 'नियमित रूप से निगरानी करते रहें। अच्छी देखभाल से ही अच्छा स्वास्थ्य बना रहता है।',
+                'mode-file': 'फाइल अपलोड करें',
+                'mode-camera': 'कैमरा का उपयोग करें',
+                'capture-btn': 'फोटो खींचें',
+                'error-camera-access-permissions': 'कैमरा एक्सेस अस्वीकृत या अवरुद्ध। कृपया सुनिश्चित करें कि आपके ब्राउज़र में कैमरा अनुमतियां सक्षम हैं और पुनः प्रयास करें।',
+                'crop-names': {
+                    'Amaranth': 'चौलाई',
+                    'Apple Gourd': 'टिंडा',
+                    'Ash Gourd': 'पेठा/सफेद पेठा',
+                    'Bitter Gourd': 'करेला',
+                    'Bottle Gourd': 'लौकी',
+                    'Brinjal (Eggplant)': 'बैंगन',
+                    'Broad Beans': 'सेम फली',
+                    'Cabbage': 'पत्ता गोभी',
+                    'Capsicum (Bell Pepper)': 'शिमला मिर्च',
+                    'Cauliflower': 'फूल गोभी',
+                    'Chow Chow': 'चौ-चौ',
+                    'Citron': 'चकोतरा',
+                    'Cluster Beans': 'ग्वार फली',
+                    'Colocasia': 'अरबी/घुइयाँ',
+                    'Coriander Leaves': 'धनिया पत्ता',
+                    'Corn': 'मक्का',
+                    'Cranberry': 'क्रैनबेरी',
+                    'Cucumber': 'खीरा/ककड़ी',
+                    'Drum Stick': 'सहजन फली',
+                    'Fenugreek': 'मेथी पत्ता',
+                    'French Beans': 'फ्रेंच बीन्स',
+                    'Gherkin': 'कुंदरू',
+                    'Green Chilli': 'हरी मिर्च',
+                    'Green Peas': 'हरी मटर',
+                    'Lady Finger (Okra)': 'भिंडी',
+                    'Malabar Spinach': 'बंगाली पालक',
+                    'Mint Leaves': 'पुदीना पत्ता',
+                    'Mushrooms': 'मशरूम',
+                    'Onion': 'प्याज',
+                    'Pointed Gourd': 'परवल',
+                    'Potato': 'आलू',
+                    'Pumpkin': 'कद्दू',
+                    'Radish': 'मूली',
+                    'Raw Banana': 'कच्चा केला',
+                    'Ridge Gourd': 'तोरी/नेनुआ',
+                    'Silk Squash': 'रेशम तोरी',
+                    'Snake Gourd': 'चिचिंडा',
+                    'Sorrel Leaves': 'खट्टी भाजी',
+                    'Spinach': 'पालक',
+                    'Spring Onions': 'हरी प्याज',
+                    'Sweet Potato': 'शकरकंद',
+                    'Tomato': 'टमाटर',
+                    'Tapioca': 'टेपियोका',
+                    'Turnip': 'शलजम',
+                    'Yam': 'सूरन/कंद',
+                }
+            },
+            te: {
+                'app-title': 'AI వ్యాధి డిటెక్టర్ (రైతు దృష్టి)',
+                'select-lang-label': 'భాషను ఎంచుకోండి:',
+                'catalog-title': 'పంట వ్యాధి కేటలాగ్ (ఉదాహరణలు)',
+                'detector-title': '🔬 AI వ్యాధి డిటెక్టర్',
+                'detector-subtitle': 'నిజ-సమయ AI రోగ నిర్ధారణ మరియు చికిత్స ప్రణాళిక కోసం ఆకు చిత్రాన్ని అప్‌లోడ్ చేయండి లేదా తీయండి.',
+                'upload-text': 'అప్‌లోడ్ చేయడానికి ఇక్కడ క్లిక్ చేయండి లేదా ఆకు చిత్రాన్ని లాగండి',
+                'analyze-btn': 'ఆకు చిత్రాన్ని విశ్లేషించండి',
+                'status-ready': 'విశ్లేషణకు సిద్ధంగా ఉంది (1. పంటను ఎంచుకోండి, 2. చిత్రాన్ని అప్‌లోడ్ చేయండి/తీయండి).',
+                'status-running': 'నిజ-సమయ AI విశ్లేషణ జరుగుతోంది...',
+                'status-complete': 'విశ్లేషణ పూర్తయింది!',
+                'results-title': 'రోగ నిర్ధారణ నివేదిక',
+                'health-rate-title': 'మొక్క ఆరోగ్య రేటు',
+                'disease-title': 'అంచనా వేసిన వ్యాధి',
+                'certainty-label': 'నమ్మకం:',
+                'recommendation-title': 'ప్రారంభ సిఫార్సు',
+                'generate-plan-btn': 'వివరణాత్మక ఔషధ సూచనలు పొందండి (AI)',
+                'plan-loading': 'గూగుల్ సెర్చ్ గ్రౌండింగ్ ఉపయోగించి నిపుణుల చికిత్స ప్రణాళిక రూపొందించబడుతోంది...',
+                'plan-detailed-title': 'వివరణాత్మక చికిత్స సూచనలు',
+                'health-est': 'ఆరోగ్య అంచనా:',
+                'confidence-label': 'నమ్మకం:',
+                'crop-diseases': (crop) => `${crop} వ్యాధులు`,
+                'crop-label': '1. పంటను ఎంచుకోండి:',
+                'image-label': '2. ఆకు చిత్రాన్ని అప్‌లోడ్ చేయండి/తీయండి:',
+                'crop-placeholder': '-- చిత్రంలో చూపిన పంటను ఎంచుకోండి --',
+                'error-select-crop': 'దయచేసి విశ్లేషించడానికి ముందు పంట రకాన్ని ఎంచుకోండి।',
+                'error-diagnosis-fail': 'AI నిర్ధారణ విఫలమైంది. దయచేసి స్పష్టమైన చిత్రాన్ని లేదా వేరే పంటను ప్రయత్నించండి।',
+                'error-crop-mismatch': 'చిత్రం ఎంచుకున్న పంటతో సరిపోలడం లేదు. ఖచ్చితమైన విశ్లేషణ కోసం దయచేసి మీ చిత్రానికి సంబంధించిన పంటను ఎంచుకోండి।',
+                'healthy-tip': 'క్రమం తప్పకుండా పర్యవేక్షిస్తూ ఉండండి. మంచి సంరక్షణ ద్వారా మంచి ఆరోగ్యం నిర్వహించబడుతుంది.',
+                'mode-file': 'ఫైల్ అప్‌లోడ్ చేయండి',
+                'mode-camera': 'కెమెరాను ఉపయోగించండి',
+                'capture-btn': 'ఫోటో తీయండి',
+                'error-camera-access-permissions': 'కెమెరా యాక్సెస్ తిరస్కరించబడింది లేదా నిరోధించబడింది. దయచేసి మీ బ్రౌజర్‌లో కెమెరా అనుమతులు ప్రారంభించబడ్డాయని నిర్ధారించుకోండి మరియు మళ్లీ ప్రయత్నించండి।',
+                'crop-names': {
+                    'Amaranth': 'తోటకూర',
+                    'Apple Gourd': 'తిండ',
+                    'Ash Gourd': 'బూడిద గుమ్మడి',
+                    'Bitter Gourd': 'కాకర కాయ',
+                    'Bottle Gourd': 'సొరకాయ',
+                    'Brinjal (Eggplant)': 'వంకాయ',
+                    'Broad Beans': 'చిక్కుడు కాయలు',
+                    'Cabbage': 'కేబ్బాజి',
+                    'Capsicum (Bell Pepper)': 'సిమ్ల మిర్చి',
+                    'Cauliflower': 'కౌలిఫ్లవర్',
+                    'Chow Chow': 'బెంగలూరు వంకాయ',
+                    'Citron': 'దబ్బకాయ',
+                    'Cluster Beans': 'గోరు చిక్కుడు కాయ',
+                    'Colocasia': 'చేమదుంప',
+                    'Coriander Leaves': 'కొతిమీర',
+                    'Corn': 'మొక్క జొన్న',
+                    'Cranberry': 'వాక్కాయ',
+                    'Cucumber': 'దోసకాయ',
+                    'Drum Stick': 'ములక్కాయ',
+                    'Fenugreek': 'మెంతి కూర',
+                    'French Beans': 'బీన్స్',
+                    'Gherkin': 'దొండకాయ',
+                    'Green Chilli': 'పచ్చి మిరపకాయ',
+                    'Green Peas': 'పచ్చి బటనిలు',
+                    'Lady Finger (Okra)': 'బెండ కాయ',
+                    'Malabar Spinach': 'బచ్చలి',
+                    'Mint Leaves': 'పుదినా',
+                    'Mushrooms': 'పుట్ట గొడుగులు',
+                    'Onion': 'ఉల్లిపాయ',
+                    'Pointed Gourd': 'పరవళ్',
+                    'Potato': 'బంగాళా దుంప',
+                    'Pumpkin': 'గుమ్మడి కాయ',
+                    'Radish': 'ముల్లంగి',
+                    'Raw Banana': 'ఆరటి కాయ',
+                    'Ridge Gourd': 'బీరకాయ',
+                    'Silk Squash': 'నేతి బీరకాయ',
+                    'Snake Gourd': 'పొట్లకాయ',
+                    'Sorrel Leaves': 'గోంగూర',
+                    'Spinach': 'పాల కూర',
+                    'Spring Onions': 'ఉల్లి కాడలు',
+                    'Sweet Potato': 'చిలకడ దుంప',
+                    'Tomato': 'టొమాటో',
+                    'Tapioca': 'కర్ర పెండలం',
+                    'Turnip': 'నూల్ఖోల్',
+                    'Yam': 'కంద',
+                }
+            }
+        };
+
+        let currentLang = 'en';
+        let base64Image = null; // Stores the Base64 data of the uploaded image
+        let currentDiagnosis = null; 
+        let currentStream = null; // Holds the camera video stream
+
+        function setLanguage(lang) {
+            currentLang = lang;
+            const t = translations[lang];
+
+            // 1. Update static and data-i18n texts
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (t[key] && typeof t[key] === 'string') {
+                    el.textContent = t[key];
+                }
+            });
+            const certaintyEl = document.getElementById('certainty-value');
+            if(certaintyEl) {
+                certaintyEl.textContent = certaintyEl.textContent; // Refresh to use new label
+            }
+            
+            // 2. Update button and dynamic HTML content (re-injecting icons)
+            const analyzeBtn = document.getElementById('analyze-btn');
+            if(analyzeBtn) {
+                 analyzeBtn.innerHTML = `<i class="fas fa-microscope mr-2"></i> ${t['analyze-btn']}`;
+            }
+            const generatePlanBtn = document.getElementById('generate-plan-btn');
+            if(generatePlanBtn) {
+                 generatePlanBtn.innerHTML = `<i class="fas fa-prescription-bottle-alt mr-2"></i> <span data-i18n="generate-plan-btn">${t['generate-plan-btn']}</span>`;
+            }
+            const captureBtn = document.getElementById('capture-btn');
+            if(captureBtn && captureBtn.classList.contains('flex')) { // Only update if visible
+                 captureBtn.innerHTML = `<i class="fas fa-circle mr-2"></i> <span data-i18n="capture-btn">${t['capture-btn']}</span>`;
+            }
+
+            // 3. Update status message
+            const statusEl = document.getElementById('status-message');
+            // Check if status is the base 'Ready' message before overwriting
+            const readyMessages = ['Ready to analyze', 'విష్लेषण కే లియె తయార్', 'విశ్లేషణకు సిద్ధంగా ఉంది'];
+            if (statusEl && readyMessages.some(msg => statusEl.textContent.includes(msg))) {
+                statusEl.textContent = t['status-ready'];
+            }
+            
+            // 4. Update crop selector placeholder
+            const cropPlaceholder = document.querySelector('#crop-selector option[value=""]');
+            if(cropPlaceholder) {
+                cropPlaceholder.textContent = t['crop-placeholder'];
+            }
+
+            // 5. Dynamic translation for Crop Selector options
+            const cropSelector = document.getElementById('crop-selector');
+            const cropTranslations = t['crop-names'];
+            if (cropSelector && cropTranslations) {
+                // Skip the first option (placeholder)
+                for (let i = 1; i < cropSelector.options.length; i++) {
+                    const option = cropSelector.options[i];
+                    const englishValue = option.value; // English value is kept as the hard value
+                    if (cropTranslations[englishValue]) {
+                        option.textContent = cropTranslations[englishValue];
+                    }
+                }
+            }
+
+            // 6. If a diagnosis exists, try to update its language
+            if (currentDiagnosis) {
+                // Since the new API call will provide the translated name, we can't reliably translate old results,
+                // so we just clear it or show the current English one (better to clear it to force re-analysis).
+                const diseaseNameEl = document.getElementById('disease-name');
+                if (diseaseNameEl) diseaseNameEl.textContent = translations[lang]['status-ready'];
+                const resultsContainer = document.getElementById('results-container');
+                if (resultsContainer) resultsContainer.classList.add('hidden');
+                currentDiagnosis = null;
+            }
+
+            // 7. Re-render catalog for translated titles
+            renderDiseaseCatalog();
+            updateMainCropImage(); // Also update main icon on language change
+        }
+
+        function renderDiseaseCatalog() {
+            const catalogEl = document.getElementById('disease-catalog');
+            if (!catalogEl) return;
+            
+            catalogEl.innerHTML = '';
+            const t = translations[currentLang];
+            
+            const grouped = diseaseData.reduce((acc, item) => {
+                if (!acc[item.crop]) acc[item.crop] = [];
+                acc[item.crop].push(item);
+                return acc;
+            }, {});
+
+            for (const crop in grouped) {
+                // Get the translated crop name for the header
+                // We must use the base English name ('Tomato') to look up the translation
+                const translatedCropName = t['crop-names'][crop] || crop;
+                
+                const cropGroup = document.createElement('div');
+                cropGroup.className = 'mb-6';
+                cropGroup.innerHTML = `<h3 class="text-xl font-bold text-stone-700 border-b border-green-200 pb-1 mb-3">${t['crop-diseases'](translatedCropName)}</h3>`;
+
+                grouped[crop].forEach(d => {
+                    const card = document.createElement('div');
+                    card.className = `${d.color} p-3 rounded-lg flex items-center space-x-3 shadow-sm hover:shadow-md transition-shadow cursor-default`;
+                    card.innerHTML = `
+                        <img src="${d.image}" onerror="this.onerror=null;this.src='https://placehold.co/100x100/94a3b8/ffffff?text=No+Image';" alt="${d.name}" class="w-12 h-12 rounded object-cover border border-stone-300">
+                        <div>
+                            <p class="font-semibold text-stone-800">${d.name}</p>
+                            <p class="text-xs text-stone-600">${t['health-est']} ${d.health}% | ${t['confidence-label']} ${d.certainty}%</p>
+                        </div>
+                    `;
+                    cropGroup.appendChild(card);
+                });
+                catalogEl.appendChild(cropGroup);
+            }
+        }
+        
+        function updateMainCropImage() {
+            const crop = document.getElementById('crop-selector').value;
+            const iconEl = document.getElementById('main-crop-icon');
+            const defaultIconEl = document.getElementById('default-leaf-icon');
+            const t = translations[currentLang];
+            
+            if (crop && iconEl) {
+                // Use the translated name for the placeholder image text
+                const translatedCropName = t['crop-names'][crop] || crop;
+                
+                let imageUrl = `https://placehold.co/80x80/059669/ffffff?text=${encodeURIComponent(translatedCropName.toUpperCase())}`;
+                
+                iconEl.src = imageUrl;
+                iconEl.classList.remove('hidden');
+                // Hide the default leaf icon when a specific crop is selected
+                if (defaultIconEl) defaultIconEl.classList.add('hidden');
+            } else if (iconEl) {
+                iconEl.classList.add('hidden');
+                iconEl.src = '';
+                // Show the default leaf icon when no crop is selected
+                if (defaultIconEl) defaultIconEl.classList.remove('hidden');
+            }
+        }
+
+        function getHealthBarColor(health) {
+            if (health >= 80) return 'bg-green-500';
+            if (health >= 50) return 'bg-yellow-500';
+            return 'bg-red-500';
+        }
+        
+        function updateHealthRateUI(health) {
+            const healthRateText = document.getElementById('health-rate-text');
+            const healthBar = document.getElementById('health-bar');
+            
+            if (!healthRateText || !healthBar) return;
+
+            healthRateText.textContent = `${health}%`;
+            healthBar.style.width = `${health}%`;
+            healthBar.className = `health-bar h-full ${getHealthBarColor(health)}`;
+        }
+        
+        // Function to update the look and feel based on diagnosis
+        function updateDiagnosisUI(isHealthy) {
+            const diseaseBox = document.getElementById('disease-box');
+            const diseaseTitle = document.getElementById('disease-title-text');
+            const diseaseIcon = document.getElementById('disease-icon');
+            const diseaseName = document.getElementById('disease-name');
+            
+            const recommendationOutput = document.getElementById('recommendation-output');
+            const recommendationTitle = document.getElementById('recommendation-title-text');
+            const recommendationIcon = document.getElementById('recommendation-icon');
+            const generatePlanBtn = document.getElementById('generate-plan-btn');
+            const healthyTip = document.getElementById('healthy-tip');
+            
+            // 1. Disease Box Styling
+            if (isHealthy) {
+                if (diseaseBox) diseaseBox.className = 'mb-6 p-4 rounded-xl bg-green-50 border border-green-200';
+                if (diseaseTitle) {
+                    diseaseTitle.classList.remove('text-red-800');
+                    diseaseTitle.classList.add('text-green-800');
+                }
+                if (diseaseIcon) diseaseIcon.className = 'fas fa-check-circle mr-2';
+                if (diseaseName) {
+                    diseaseName.classList.remove('text-red-900');
+                    diseaseName.classList.add('text-green-900');
+                }
+
+                // 2. Recommendation Box Styling for Healthy
+                if (recommendationOutput) recommendationOutput.className = 'p-4 rounded-xl mb-6 treatment-box-healthy';
+                if (recommendationTitle) {
+                    recommendationTitle.classList.remove('text-red-800');
+                    recommendationTitle.classList.add('text-green-800');
+                }
+                if (recommendationIcon) recommendationIcon.className = 'fas fa-hand-holding-heart mr-2'; // Healthy icon
+                
+                if (generatePlanBtn) {
+                    generatePlanBtn.disabled = true; // No need for detailed plan if healthy
+                    generatePlanBtn.classList.add('disabled:bg-stone-400');
+                } 
+                if (healthyTip) healthyTip.classList.remove('hidden');
+
+            } else {
+                if (diseaseBox) diseaseBox.className = 'mb-6 p-4 rounded-xl bg-red-50 border border-red-200';
+                if (diseaseTitle) {
+                    diseaseTitle.classList.remove('text-green-800');
+                    diseaseTitle.classList.add('text-red-800');
+                }
+                if (diseaseIcon) diseaseIcon.className = 'fas fa-bug mr-2';
+                if (diseaseName) {
+                    diseaseName.classList.remove('text-green-900');
+                    diseaseName.classList.add('text-red-900');
+                }
+
+                // 2. Recommendation Box Styling for Diseased
+                if (recommendationOutput) recommendationOutput.className = 'p-4 rounded-xl mb-6 treatment-box-diseased';
+                if (recommendationTitle) {
+                    recommendationTitle.classList.remove('text-green-800');
+                    recommendationTitle.classList.add('text-red-800');
+                }
+                if (recommendationIcon) recommendationIcon.className = 'fas fa-hand-holding-medical mr-2'; // Medical icon
+                
+                if (generatePlanBtn) {
+                    generatePlanBtn.disabled = false; // Enable detailed plan
+                    generatePlanBtn.classList.remove('disabled:bg-stone-400');
+                }
+                if (healthyTip) healthyTip.classList.add('hidden');
+            }
+        }
+
+
+        function updateStatus(key, error = false) {
+            const statusEl = document.getElementById('status-message');
+            const errorEl = document.getElementById('error-message');
+
+            if (!statusEl || !errorEl) {
+                console.error("DOM elements for status or error messages are missing.");
+                return; 
+            }
+            
+            // Standard cleanup/reset
+            errorEl.classList.add('hidden');
+            statusEl.classList.remove('text-red-600');
+            statusEl.classList.remove('hidden');
+            
+            if (error) {
+                errorEl.textContent = key;
+                errorEl.classList.remove('hidden');
+                statusEl.classList.add('hidden');
+            } else if (key in translations[currentLang]) {
+                statusEl.textContent = translations[currentLang][key];
+            } else {
+                statusEl.textContent = key;
+            }
+        }
+        
+        // --- AI VALIDATION FUNCTION (Step 1) ---
+        async function validateCropWithAI(base64Data, mimeType, cropName) {
+            const t = translations[currentLang];
+            updateStatus(t['status-running'] + ' (Step 1: Crop Validation)');
+
+            const systemPrompt = `You are an expert visual crop identifier. Analyze the image to determine if the leaf shown is a ${cropName} leaf. Your response MUST be a single JSON object.`;
+            
+            const userQuery = `Does the plant leaf in the image visually match a ${cropName} leaf? Respond with 'true' or 'false' in the 'isMatch' field.`;
+
+            const responseSchema = {
+                type: "OBJECT",
+                properties: {
+                    "isMatch": { "type": "BOOLEAN", "description": "True if the image is highly likely to be the selected crop, false otherwise." },
+                    "reasoning": { "type": "STRING", "description": "Brief, internal reasoning for the match decision." }
+                },
+                required: ["isMatch", "reasoning"]
+            };
+
+            const payload = {
+                contents: [{
+                    role: "user",
+                    parts: [
+                        { text: userQuery },
+                        { inlineData: { mimeType: mimeType, data: base64Data } }
+                    ]
+                }],
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: responseSchema
+                },
+                systemInstruction: { parts: [{ text: systemPrompt }] }
+            };
+            
+            try {
+                const response = await fetchWithExponentialBackoff(apiUrl_text_vision, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`API Error during validation: HTTP status ${response.status}.`);
+                }
+
+                const result = await response.json(); 
+                const jsonText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+                
+                if (!jsonText) {
+                     // If the JSON is missing, we must fail validation to maintain accuracy.
+                    return { isMatch: false, reasoning: 'AI failed to parse JSON for validation.' };
+                }
+                
+                const validationResult = JSON.parse(jsonText);
+                return validationResult;
+
+            } catch (error) { 
+                console.error("Error during AI crop validation:", error); 
+                // Return failure on any API or parsing error
+                return { isMatch: false, reasoning: `Validation API failed: ${error.message}` };
+            }
+        }
+
+
+        // --- AI DIAGNOSIS FUNCTION (Step 2) ---
+        async function diagnoseImageWithAI(base64Data, mimeType, cropName) {
+            const t = translations[currentLang];
+
+            const analyzeBtn = document.getElementById('analyze-btn');
+            const resultsContainer = document.getElementById('results-container');
+            const generatePlanBtn = document.getElementById('generate-plan-btn');
+            
+            updateStatus(t['status-running'] + ' (Step 2: Disease Diagnosis)');
+            if (analyzeBtn) analyzeBtn.disabled = true;
+            if (generatePlanBtn) generatePlanBtn.disabled = true;
+            if (resultsContainer) resultsContainer.classList.add('hidden');
+            
+            const treatmentPlanOutput = document.getElementById('treatment-plan-output');
+            const planLoading = document.getElementById('plan-loading');
+            
+            if (treatmentPlanOutput) treatmentPlanOutput.classList.add('hidden');
+            if (planLoading) planLoading.classList.add('hidden');
+
+            let languageName;
+            switch (currentLang) {
+                case 'hi': languageName = 'Hindi'; break;
+                case 'te': languageName = 'Telugu'; break;
+                default: languageName = 'English';
+            }
+
+            // The AI should receive the English (base) crop name for accurate grounding
+            const englishCropName = cropName;
+
+            // System Prompt for Diagnosis
+            const systemPrompt = `You are a highly accurate AI crop disease detector. Analyze the uploaded image of a ${englishCropName} leaf. Provide the diagnosis and metrics as a single JSON object. DO NOT include any text outside of the JSON object. The diagnosis must be grounded in real plant pathology.
+            
+            CRITICAL INSTRUCTION FOR TRANSLATION:
+            The 'diseaseNameTranslated' and 'recommendation' fields MUST be provided in ${languageName} for the farmer. The 'diseaseName' field must be the technical English name.
+            
+            CRITICAL INSTRUCTION FOR 'recommendation' FIELD:
+            1. If HealthRate is 95-100% (Healthy): The recommendation must be a brief tip about routine care, watering, or general prevention, and should NOT suggest pesticides or chemicals.
+            2. If HealthRate is below 95% (Diseased): The recommendation must clearly state the IMMEDIATE required action/method (e.g., 'Apply a specific type of fungicide', 'Control the insect vector', 'Isolate the plant'). It must be actionable.`;
+            
+            const userQuery = `Identify the disease shown on the ${englishCropName} leaf. If the leaf is healthy, state 'Healthy ${englishCropName} Leaf' in English for the 'diseaseName' field. Provide the translated name and a brief, initial recommendation following the critical instruction in ${languageName}.`;
+
+            const responseSchema = {
+                type: "OBJECT",
+                properties: {
+                    "diseaseName": { "type": "STRING", "description": "The specific technical disease name in English (e.g., Cercospora Leaf Spot, Early Blight, or Healthy Leaf)." },
+                    "diseaseNameTranslated": { "type": "STRING", "description": "The specific disease name translated into the target language (${languageName})." },
+                    "healthRate": { "type": "NUMBER", "description": "Estimated health percentage (0-100). Accuracy is paramount." },
+                    "certainty": { "type": "NUMBER", "description": "Confidence percentage (0-100)." },
+                    "recommendation": { "type": "STRING", "description": "A brief initial, conditional recommendation in the target language (${languageName})." }
+                },
+                required: ["diseaseName", "diseaseNameTranslated", "healthRate", "certainty", "recommendation"]
+            };
+
+            const payload = {
+                contents: [{
+                    role: "user",
+                    parts: [
+                        { text: userQuery },
+                        { inlineData: { mimeType: mimeType, data: base64Data } }
+                    ]
+                }],
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: responseSchema
+                },
+                systemInstruction: { parts: [{ text: systemPrompt }] }
+            };
+            
+            try {
+                const response = await fetchWithExponentialBackoff(apiUrl_text_vision, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`API Error: HTTP status ${response.status}.`);
+                }
+
+                const result = await response.json(); 
+                const jsonText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+                
+                if (!jsonText) {
+                    throw new Error("AI returned an empty diagnosis. Please try a clearer image."); 
+                }
+                
+                const prediction = JSON.parse(jsonText);
+                
+                // --- Update UI with AI Results ---
+                currentDiagnosis = {
+                    name: prediction.diseaseName, // Technical Name
+                    translatedName: prediction.diseaseNameTranslated, // Translated Name (NEW)
+                    crop: englishCropName,
+                    health: prediction.healthRate,
+                    certainty: prediction.certainty,
+                    recommendation: prediction.recommendation // Translated Recommendation
+                };
+                
+                const diseaseNameEl = document.getElementById('disease-name');
+                const certaintyValueEl = document.getElementById('certainty-value');
+                const recommendationTextEl = document.getElementById('recommendation-text');
+                
+                // CRUCIAL: Display the translated name to the farmer
+                if (diseaseNameEl) diseaseNameEl.textContent = currentDiagnosis.translatedName;
+                
+                if (certaintyValueEl) certaintyValueEl.textContent = `${currentDiagnosis.certainty}%`;
+                if (recommendationTextEl) recommendationTextEl.textContent = currentDiagnosis.recommendation;
+                
+                const isHealthy = currentDiagnosis.health >= 95;
+
+                updateHealthRateUI(currentDiagnosis.health);
+                updateDiagnosisUI(isHealthy); // New function to update styling/button logic
+
+                updateStatus('status-complete');
+                if (resultsContainer) resultsContainer.classList.remove('hidden');
+                
+            } catch (error) { 
+                console.error("Error during AI diagnosis:", error); 
+                const errorMessage = t['error-diagnosis-fail'].replace('AI Diagnosis failed.', `AI Diagnosis failed: ${error.message.substring(0, 100)}...`);
+                updateStatus(errorMessage, true);
+            } finally {
+                 if (analyzeBtn) analyzeBtn.disabled = false;
+            }
+        }
+        
+        // --- TREATMENT PLAN GENERATION (Grounded Generation) ---
+        async function generateTreatmentPlan(disease, crop, recommendation) {
+            const generatePlanBtn = document.getElementById('generate-plan-btn');
+            const planLoading = document.getElementById('plan-loading');
+            const treatmentPlanOutput = document.getElementById('treatment-plan-output');
+            const planStepsEl = document.getElementById('plan-steps');
+            const t = translations[currentLang];
+            
+            let languageName;
+            switch (currentLang) {
+                case 'hi': languageName = 'Hindi (हिन्दी)'; break;
+                case 'te': languageName = 'Telugu (తెలుగు)'; break;
+                default: languageName = 'English';
+            }
+
+            if (generatePlanBtn) generatePlanBtn.disabled = true;
+            if (planLoading) {
+                planLoading.classList.remove('hidden');
+                planLoading.querySelector('span').textContent = t['plan-loading'];
+            }
+            if (treatmentPlanOutput) treatmentPlanOutput.classList.add('hidden');
+            if (planStepsEl) planStepsEl.innerHTML = '';
+            
+            // System prompt emphasizes grounded, specific, actionable advice
+            const systemPrompt = `You are a certified agricultural consultant specializing in ${crop} diseases. Provide a concise, step-by-step treatment plan focusing on specific, modern medicine/fungicide/pesticide suggestions (using generic, well-known chemical names like 'Copper Hydroxide' or 'Azoxystrobin' for example). The plan must be structured into three main sections: 'Immediate Action (based on the initial recommendation)', 'Recommended Medicine/Fungicide (with chemical names)', and 'Long-term Prevention'. Use bullet points for easy farmer readability. The entire response must be generated in ${languageName}.`;
+            const userQuery = `Generate a detailed treatment plan for the crop: ${crop}, which has been diagnosed with: ${disease}. Initial recommendation was: ${recommendation}. Provide specific medicine/chemical names in the 'Recommended Medicine/Fungicide' section, grounded in real-time search results.`;
+            
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                // MANDATORY: Use Google Search for grounding the treatment advice
+                tools: [{ "google_search": {} }],
+                systemInstruction: { parts: [{ text: systemPrompt }] }
+            };
+            
+            try {
+                const response = await fetchWithExponentialBackoff(apiUrl_text_vision, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (!response.ok) {
+                    const errorDetail = await response.text();
+                    throw new Error(`HTTP Error ${response.status}. Detail: ${errorDetail.substring(0, 100)}...`);
+                }
+
+                const result = await response.json(); 
+                const planText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+                
+                if (planText) {
+                    // Convert markdown to readable HTML structure
+                    if (planStepsEl) {
+                        // Simple Markdown to HTML conversion for structure
+                        const htmlContent = planText
+                            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Bold text
+                            .replace(/^- (.*)/gm, '<li>$1</li>') // List items
+                            // Check for both English and Telugu/Hindi headers
+                            .replace(/(Immediate Action|Recommended Medicine\/Fungicide|Long-term Prevention|తక్షణ చర్య|సిఫార్సు చేయబడిన మందు\/శిలీంద్రనాశకం|దీర్ఘకాలిక నివారణ|तत्काल कार्रवाई|अनुशंसित दवा\/कवकनाशी|दीर्घकालिक रोकथाम)/g, '<h3>$1</h3>') 
+                            .replace(/<br>\s*<h3>/g, '<h3>'); // Remove leading breaks before headings
+                        
+                        planStepsEl.innerHTML = `<div class="prose max-w-none text-stone-700 space-y-3">${htmlContent}</div>`;
+                    }
+                    if (planLoading) planLoading.classList.add('hidden'); 
+                    if (treatmentPlanOutput) treatmentPlanOutput.classList.remove('hidden');
+                } else { 
+                    throw new Error("AI could not generate a valid treatment plan. Please try again."); 
+                }
+
+            } catch (error) { 
+                console.error("Error generating treatment plan:", error); 
+                if (planLoading) planLoading.querySelector('span').textContent = `Error: ${error.message}`; 
+            } finally {
+                 if (generatePlanBtn) generatePlanBtn.disabled = false;
+            }
+        }
+
+        // --- CAMERA LOGIC ---
+        const video = document.getElementById('camera-feed');
+        const canvas = document.getElementById('camera-canvas');
+        let mediaStream = null;
+
+        function stopCamera() {
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
+            }
+            if (video) video.style.display = 'none';
+        }
+
+        async function startCamera() {
+            const t = translations[currentLang];
+            stopCamera(); // Stop any existing stream
+            try {
+                // Request access to video using 'environment' (back camera) preference
+                mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+                if (video) {
+                    video.srcObject = mediaStream;
+                    video.style.display = 'block';
+                    video.onloadedmetadata = () => video.play();
+                }
+                document.getElementById('capture-btn')?.classList.remove('hidden');
+                document.getElementById('image-preview')?.classList.add('hidden');
+                document.getElementById('camera-canvas')?.classList.add('hidden');
+                document.getElementById('image-preview-container')?.classList.remove('hidden'); // Show container
+                
+                base64Image = null; // Clear previous image
+                imageLoaded = false;
+                checkAnalysisReadiness();
+                updateStatus('Camera live. Tap Capture Photo to take the picture.'); // Custom status
+            } catch (err) {
+                console.error("Error accessing camera:", err);
+                
+                // Show specific permission error to the user
+                updateStatus(t['error-camera-access-permissions'], true);
+                
+                // Immediately stop camera and switch back to file mode gracefully
+                stopCamera();
+                switchMode('file'); 
+            }
+        }
+
+        function capturePhoto() {
+            if (!video || !canvas || !mediaStream) return;
+
+            // Stop any analysis/plan generation process
+            document.getElementById('results-container')?.classList.add('hidden');
+            document.getElementById('treatment-plan-output')?.classList.add('hidden');
+            document.getElementById('plan-loading')?.classList.add('hidden');
+            
+            // Set canvas dimensions to match the video feed
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+
+            const ctx = canvas.getContext('2d');
+            // Draw the current video frame onto the canvas
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // Convert canvas content to base64 image data (JPEG for smaller size/faster upload)
+            const dataURL = canvas.toDataURL('image/jpeg', 0.8);
+            
+            // Set global variables for analysis
+            base64Image = dataURL.substring(dataURL.indexOf(',') + 1);
+            mimeType = 'image/jpeg';
+            imageLoaded = true;
+
+            // Update UI to show captured image
+            document.getElementById('image-preview').src = dataURL;
+            document.getElementById('image-preview').classList.remove('opacity-0', 'hidden');
+            canvas.classList.add('hidden'); // Hide canvas element
+            video.style.display = 'none'; // Hide video feed
+            document.getElementById('capture-btn').classList.add('hidden');
+
+            stopCamera(); // Stop the stream after capture
+            updateStatus('status-ready'); // Reset status for next step
+            checkAnalysisReadiness();
+        }
+
+        // --- INITIALIZATION ---
+        document.addEventListener('DOMContentLoaded', function() {
+            const imageUpload = document.getElementById('image-upload');
+            const imagePreviewContainer = document.getElementById('image-preview-container');
+            const imagePreview = document.getElementById('image-preview');
+            const analyzeBtn = document.getElementById('analyze-btn');
+            const cropSelector = document.getElementById('crop-selector');
+            const generatePlanBtn = document.getElementById('generate-plan-btn');
+            const languageSelector = document.getElementById('language-selector');
+            const modeFileBtn = document.getElementById('mode-file-btn');
+            const modeCameraBtn = document.getElementById('mode-camera-btn');
+            const fileUploadView = document.getElementById('file-upload-view');
+            const cameraView = document.getElementById('camera-view');
+            const captureBtn = document.getElementById('capture-btn');
+
+
+            let imageLoaded = false;
+            let mimeType = '';
+
+
+            // Initialize UI with English (default)
+            setLanguage('en'); 
+
+            // Language Selector Event Listener
+            languageSelector.addEventListener('change', (event) => {
+                setLanguage(event.target.value);
+            });
+            
+            function checkAnalysisReadiness() {
+                const selectedCrop = cropSelector.value;
+                if (analyzeBtn) analyzeBtn.disabled = !(imageLoaded && selectedCrop);
+            }
+            
+            if (cropSelector) cropSelector.addEventListener('change', () => {
+                checkAnalysisReadiness();
+                updateMainCropImage(); // Update main header image on crop selection
+            });
+
+            // --- Mode Switching Logic ---
+            const switchMode = (mode) => {
+                stopCamera();
+                document.getElementById('results-container')?.classList.add('hidden');
+                document.getElementById('treatment-plan-output')?.classList.add('hidden');
+                document.getElementById('plan-loading')?.classList.add('hidden');
+                base64Image = null;
+                imageLoaded = false;
+                imagePreview.classList.add('opacity-0', 'hidden');
+                canvas.classList.add('hidden');
+                document.getElementById('upload-text').textContent = translations[currentLang]['upload-text'];
+                imagePreviewContainer.classList.add('hidden'); // Hide preview container when clearing image
+                updateStatus('status-ready');
+                
+                if (mode === 'file') {
+                    // Update button styles
+                    modeFileBtn.className = 'flex-1 p-3 rounded-lg font-semibold transition-all duration-200 border-2 border-green-600 bg-green-50 text-green-700 shadow-md';
+                    modeCameraBtn.className = 'flex-1 p-3 rounded-lg font-semibold transition-all duration-200 border-2 border-stone-300 bg-stone-100 text-stone-700 hover:bg-stone-200';
+                    // Show/Hide views
+                    fileUploadView.classList.remove('hidden');
+                    cameraView.classList.add('hidden');
+                } else if (mode === 'camera') {
+                    // Update button styles
+                    modeCameraBtn.className = 'flex-1 p-3 rounded-lg font-semibold transition-all duration-200 border-2 border-green-600 bg-green-50 text-green-700 shadow-md';
+                    modeFileBtn.className = 'flex-1 p-3 rounded-lg font-semibold transition-all duration-200 border-2 border-stone-300 bg-stone-100 text-stone-700 hover:bg-stone-200';
+                    // Show/Hide views
+                    fileUploadView.classList.add('hidden');
+                    cameraView.classList.remove('hidden');
+                    startCamera();
+                }
+                checkAnalysisReadiness();
+            };
+            
+            if (modeFileBtn) modeFileBtn.addEventListener('click', () => switchMode('file'));
+            if (modeCameraBtn) modeCameraBtn.addEventListener('click', () => switchMode('camera'));
+            
+            // --- File Upload Listener ---
+            if (imageUpload) imageUpload.addEventListener('change', function(event) {
+                const file = event.target.files[0];
+                if (file) {
+                    mimeType = file.type;
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        const base64String = e.target.result;
+                        // Strip the data URI prefix (e.g., "data:image/jpeg;base64,")
+                        base64Image = base64String.substring(base64String.indexOf(',') + 1);
+                        
+                        if (imagePreview) imagePreview.src = base64String;
+                        if (imagePreview) imagePreview.onload = () => {
+                            imagePreview.classList.remove('opacity-0', 'hidden');
+                            canvas.classList.add('hidden');
+                            if (imagePreviewContainer) imagePreviewContainer.classList.remove('hidden');
+                            imageLoaded = true;
+                            const uploadText = document.getElementById('upload-text');
+                            if (uploadText) uploadText.textContent = `${file.name}`;
+                            updateStatus('status-ready');
+                            const resultsContainer = document.getElementById('results-container');
+                            if (resultsContainer) resultsContainer.classList.add('hidden');
+                            if (generatePlanBtn) generatePlanBtn.disabled = true;
+                            checkAnalysisReadiness();
+                        };
+                        // Handle case where image loads instantly (e.g. cached)
+                        if (imagePreview && imagePreview.complete && imagePreview.src) {
+                             imagePreview.onload();
+                        }
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+
+            // --- Camera Capture Listener ---
+            if (captureBtn) captureBtn.addEventListener('click', capturePhoto);
+
+            if (analyzeBtn) analyzeBtn.addEventListener('click', async function() {
+                const selectedCrop = cropSelector.value;
+                if (!imageLoaded) {
+                    updateStatus(translations[currentLang]['upload-text'], true);
+                    return;
+                }
+                if (!selectedCrop) {
+                    updateStatus(translations[currentLang]['error-select-crop'], true);
+                    return;
+                }
+                
+                // 1. --- Start Crop Validation (Step 1) ---
+                const validationResult = await validateCropWithAI(base64Image, mimeType, selectedCrop);
+
+                if (!validationResult.isMatch) {
+                    // Show Mismatch Error and STOP
+                    updateStatus(translations[currentLang]['error-crop-mismatch'], true);
+                    const resultsContainer = document.getElementById('results-container');
+                    if (resultsContainer) resultsContainer.classList.add('hidden');
+                    return; // Crucial: halt execution if crop doesn't match
+                }
+                
+                // 2. --- If validated, proceed to Disease Diagnosis (Step 2) ---
+                diagnoseImageWithAI(base64Image, mimeType, selectedCrop);
+            });
+            
+            if (generatePlanBtn) generatePlanBtn.addEventListener('click', () => { 
+                if (currentDiagnosis) {
+                    // Pass the technical English name for better grounding, 
+                    // even though the UI shows the translated name.
+                    generateTreatmentPlan(
+                        currentDiagnosis.name,
+                        currentDiagnosis.crop,
+                        currentDiagnosis.recommendation
+                    ); 
+                }
+            });
+
+            // Initial setup to show file upload view
+            switchMode('file');
+            updateMainCropImage(); // Initial call to ensure no image is shown
+        });
+    </script>
+</body>
+</html>
